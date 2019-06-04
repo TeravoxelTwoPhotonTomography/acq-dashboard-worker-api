@@ -2,12 +2,13 @@ import * as amqp from "amqplib";
 import {Connection, Channel} from "amqplib";
 import {ITaskExecutionAttributes} from "../data-model/sequelize/taskExecution";
 import {MessageQueueService} from "../options/coreServicesOptions";
+import {StatusChannel} from "./statusChannel";
 
 const debug = require("debug")("pipeline:main-queue");
 
 const TaskExecutionCompleteQueue = "TaskExecutionCompleteQueue";
 const TaskExecutionUpdateQueue = "TaskExecutionUpdateQueue";
-const TaskCancelRequestQueue = "TaskCancelRequestQueue";
+// const TaskCancelRequestQueue = "TaskCancelRequestQueue";
 
 export class MainQueue {
     private static instance: MainQueue = new MainQueue();
@@ -19,8 +20,14 @@ export class MainQueue {
 
     private _lastConnectAttempt: Date = null;
 
+    private _statusChannel: StatusChannel = new StatusChannel();
+
     public static get Instance() {
         return this.instance;
+    }
+
+    public get StatusChannel(): StatusChannel {
+        return this._statusChannel;
     }
 
     public async connect(): Promise<void> {
@@ -29,8 +36,8 @@ export class MainQueue {
             debug(`main queue url: ${this._url}`);
 
             if (await this.createConnection()) {
-                if (await this.createTaskCompleteChannel()) {
-                    // TODO this.sendUnsynchronized()
+                if ((await this.createTaskCompleteChannel())) {
+                    await this._statusChannel.connect(this._connection);
 
                     this._lastConnectAttempt = new Date();
 
@@ -110,7 +117,7 @@ export class MainQueue {
 
             await this._channel.assertQueue(TaskExecutionUpdateQueue, {durable: false});
 
-            await this._channel.assertQueue(TaskCancelRequestQueue, {durable: false});
+            // await this._channel.assertQueue(TaskCancelRequestQueue, {durable: false});
 
             return true;
         } catch (err) {

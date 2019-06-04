@@ -29,7 +29,7 @@ async function start() {
 
     app.use(["/", ServiceConfiguration.graphiQlEndpoint], graphiQLMiddleware(ServiceConfiguration));
 
-    SocketIoClient.use(worker, CoordinatorService);
+    await SocketIoClient.use(worker, CoordinatorService);
 
     app.listen(PORT, () => debug(`API Server is now running on http://localhost:${PORT}`));
 }

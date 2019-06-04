@@ -1,6 +1,4 @@
-import * as socket_io from "socket.io-client";
-
-const debug = require("debug")("pipeline:worker-api:socket.io");
+const debug = require("debug")("pipeline:worker-api:message-queue");
 
 import {ITaskExecutionAttributes} from "../data-model/sequelize/taskExecution";
 import {LocalPersistentStorageManager} from "../data-access/local/databaseConnector";
@@ -9,88 +7,53 @@ import {IWorker} from "../data-model/sequelize/worker";
 import {ICoordinatorService} from "../options/coreServicesOptions";
 import {ServiceConfiguration} from "../options/serviceConfig";
 import {QueueType} from "../task-management/taskSupervisor";
+import {MainQueue} from "../message-queue/mainQueue";
 
-export enum ServerConnectionStatus {
-    Uninitialized,
-    Creating,
-    Connected,
-    Reconnecting,
-    Disconnected,
-    ConnectionError,
-    ReconnectionError
-}
 
 export class SocketIoClient {
+    private static _UPDATE_INTERVAL_MINUTES = 10;
     private static _HEARTBEAT_INTERVAL_SECONDS = 10;
 
     private static _ioClient: SocketIoClient = null;
 
-    public static use(worker: IWorker, coordinatorService: ICoordinatorService) {
-        this._ioClient = new SocketIoClient(worker, coordinatorService);
+    public static async use(worker: IWorker, coordinatorService: ICoordinatorService) {
+        if (this._ioClient === null) {
+            this._ioClient = new SocketIoClient(worker, coordinatorService);
+            await this._ioClient.start();
+        }
     }
 
-    private _socket;
-
-    private _worker: IWorker;
+    private readonly _url: string;
+    private readonly _worker: IWorker;
 
     private _heartBeatInterval = null;
-
-    private _connectionStatus = ServerConnectionStatus.Creating;
+    private _updateInterval = null;
 
     private _localStorageManager = LocalPersistentStorageManager.Instance();
 
     private constructor(worker: IWorker, coordinatorService: ICoordinatorService) {
         this._worker = worker;
-
-        this._socket = socket_io(`http://${coordinatorService.host}:${coordinatorService.port}`);
-
-        debug("interface available");
-
-        this._socket.on("connect", async () => {
-            debug("connected to server");
-
-            this._connectionStatus = ServerConnectionStatus.Connected;
-
-            this.emitHostInformation(worker);
-
-            await this.emitHeartBeat();
-
-            if (!this._heartBeatInterval) {
-                this._heartBeatInterval = setInterval(() => this.emitHeartBeat(), SocketIoClient._HEARTBEAT_INTERVAL_SECONDS * 1000);
-            }
-        });
-
-        this._socket.on("error", reason => {
-            debug("connection error");
-            this._connectionStatus = ServerConnectionStatus.ConnectionError;
-        });
-
-        this._socket.on("reconnect", count => {
-            debug(`reconnected after ${count} attempts`);
-            this._connectionStatus = ServerConnectionStatus.Connected;
-        });
-
-        this._socket.on("reconnecting", count => {
-            if (count % 10 === 0) {
-                debug(`reconnect attempt ${count}`);
-            }
-            this._connectionStatus = ServerConnectionStatus.Reconnecting;
-        });
-
-        this._socket.on("reconnect_error", reason => {
-            // debug("reconnection error");
-            this._connectionStatus = ServerConnectionStatus.ReconnectionError;
-        });
-
-        this._socket.on("disconnect", () => {
-            debug("disconnected");
-            this._connectionStatus = ServerConnectionStatus.Disconnected;
-        });
+        this._url = `http://${coordinatorService.host}:${coordinatorService.port}`;
     }
 
-    private emitHostInformation(worker: IWorker) {
-        this._socket.emit("workerApiService", {
-            worker: worker,
+    public async start() {
+        this.emitHostInformation();
+
+        if (!this._updateInterval) {
+            this._updateInterval = setInterval(() => this.emitHeartBeat(), SocketIoClient._UPDATE_INTERVAL_MINUTES * 60 * 1000);
+        }
+
+        await this.emitHeartBeat();
+
+        if (!this._heartBeatInterval) {
+            this._heartBeatInterval = setInterval(() => this.emitHeartBeat(), SocketIoClient._HEARTBEAT_INTERVAL_SECONDS * 1000);
+        }
+    }
+
+    private emitHostInformation() {
+
+        MainQueue.Instance.StatusChannel.sendStatus({
+            worker: this._worker,
             service: ServiceConfiguration,
             machine: MachineProperties
         });
@@ -111,12 +74,11 @@ export class SocketIoClient {
                 }
             });
 
-            this._socket.emit("heartBeat", {
+            MainQueue.Instance.StatusChannel.sendHeartbeat({
                 worker: this._worker.toJSON(),
                 localTaskLoad,
                 clusterTaskLoad
             });
-
         } catch (err) {
             debug("failed to emit heartbeat");
             debug(err);
