@@ -1,4 +1,5 @@
-let typeDefinitions = `
+export const typeDefinitions = `
+scalar Date
 
 type PageInfo {
     endCursor: String
@@ -35,9 +36,9 @@ type TaskDefinition {
   local_work_units: Float
   cluster_work_units: Float
   log_prefix: String
-  created_at: Float
-  updated_at: Float
-  deleted_at: Float
+  created_at: Date
+  updated_at: Date
+  deleted_at: Date
 }
 
 type TaskExecution {
@@ -67,14 +68,14 @@ type TaskExecution {
   max_cpu_percent: Float
   max_memory_mb: Float
   exit_code: Int
-  submitted_at: Float
-  started_at: Float
-  completed_at: Float
+  submitted_at: Date
+  started_at: Date
+  completed_at: Date
   sync_status: Int
-  synchronized_at: Float
-  created_at: Float
-  updated_at: Float
-  deleted_at: Float
+  synchronized_at: Date
+  created_at: Date
+  updated_at: Date
+  deleted_at: Date
 }
 
 type Worker {
@@ -87,9 +88,9 @@ type Worker {
   is_accepting_jobs: Boolean
   local_task_load: Float
   cluster_task_load: Float
-  created_at: String
-  updated_at: String
-  deleted_at: String
+  created_at: Date
+  updated_at: Date
+  deleted_at: Date
 }
 
 type StartTaskResponse {
@@ -132,5 +133,3 @@ schema {
   mutation: Mutation
 }
 `;
-
-export default typeDefinitions;

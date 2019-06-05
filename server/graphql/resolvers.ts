@@ -1,3 +1,6 @@
+import {GraphQLScalarType} from "graphql";
+import {Kind} from "graphql/language";
+
 import {GraphQLAppContext, IPaginationConnections, ISimplePage} from "./graphQLContext";
 import {CompletionResult, ITaskExecutionAttributes} from "../data-model/sequelize/taskExecution";
 import {LocalPersistentStorageManager} from "../data-access/local/databaseConnector";
@@ -98,7 +101,23 @@ let resolvers = {
                 return p + t.cluster_work_units;
             }, 0);
         }
-    }
+    },
+    Date: new GraphQLScalarType({
+        name: "Date",
+        description: "Date custom scalar type",
+        parseValue: (value) => {
+            return new Date(value); // value from the client
+        },
+        serialize: (value) => {
+            return value.getTime(); // value sent to the client
+        },
+        parseLiteral: (ast) => {
+            if (ast.kind === Kind.INT) {
+                return parseInt(ast.value, 10); // ast value is always in string format
+            }
+            return null;
+        },
+    })
 };
 
 export default resolvers;

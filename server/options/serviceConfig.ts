@@ -8,7 +8,6 @@ export interface IApiService {
     networkAddress: string;
     networkPort: number;
     graphQlEndpoint: string;
-    graphiQlEndpoint: string;
     cluster: {
         generateCommandOnly: boolean;
         submitHost: string;
@@ -21,7 +20,6 @@ const ApiService: IApiService = {
     networkAddress: "",
     networkPort: 6201,
     graphQlEndpoint: "/graphql",
-    graphiQlEndpoint: "/graphiql",
     cluster: {
         generateCommandOnly: false,
         submitHost: "login1"
@@ -54,7 +52,6 @@ function readHostProperties(config: IApiService, networkProperties: INetworkProp
         networkAddress: networkProperties.networkAddress,
         networkPort: parseInt(process.env.PIPELINE_WORKER_API_PORT) || config.networkPort,
         graphQlEndpoint: config.graphQlEndpoint,
-        graphiQlEndpoint: config.graphiQlEndpoint,
         cluster: {
             generateCommandOnly,
             submitHost: process.env.PIPELINE_WORKER_CLUSTER_HOST || config.cluster.submitHost
