@@ -7,7 +7,6 @@
     "skipLibCheck": true
   },
   "exclude": [
-    "knex-migrations",
     "node_modules"
   ]
 }

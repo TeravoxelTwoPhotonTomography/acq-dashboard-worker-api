@@ -6,7 +6,6 @@
     "sourceMap": false
   },
   "exclude": [
-    "knex-migrations",
     "gulpfile.ts"
   ]
 }

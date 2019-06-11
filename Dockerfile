@@ -1,4 +1,4 @@
-FROM node:8.12
+FROM node:8.16
 
 WORKDIR /app
 
@@ -6,7 +6,7 @@ COPY dist .
 
 RUN yarn global add sequelize-cli
 
-RUN yarn install
+RUN yarn --production install
 
 CMD ["./docker-entry.sh"]
 
