@@ -27,10 +27,10 @@ To override the hostname as the worker name, use
 * `PIPELINE_WORKER_NAME`
 
 ### Local Process Manager
-For workers that will process locally (vs. cluster submissions) PM2 is used by default, however it is not installed as a local 
-node module by default.  If installed as part of your global node install, you can access any of the global modules through na
-export such as 
+For workers that will process locally (vs. cluster submissions) PM2 can be used as a process manager.  However this is 
+optional and it is not installed as a local node module by default.  Instead, install as part of your global node install,
+and enable access (to any) of the global modules through an export such as 
 
-`NODE_PATH=~/.nvm/versions/node/v7.10.0/lib/node_modules`
+`NODE_PATH=~/.nvm/versions/node/v8.16.0/lib/node_modules`
 
-in the example when using NVM and node 7.10.0.
+in the example when using NVM and node 8.16.0.

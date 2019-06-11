@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY dist .
 
-RUN yarn global add sequelize-cli
+RUN yarn global add sequelize-cli pm2
 
 RUN yarn --production install
 
