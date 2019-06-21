@@ -181,9 +181,11 @@ export class TaskSupervisor implements ITaskSupervisor, ITaskUpdateDelegate {
             taskExecution.completion_status_code = CompletionResult.Error;
 
             await taskExecution.save();
+
+            await MainQueue.Instance.sendTaskExecutionComplete(taskExecution);
         }
 
-        const returnTaskExecution = await this._localStorageManager.TaskExecutions.findById(taskExecution.id);
+        const returnTaskExecution = await this._localStorageManager.TaskExecutions.findByPk(taskExecution.id);
 
         return {
             taskExecution: returnTaskExecution.get({plain: true}),
@@ -194,7 +196,7 @@ export class TaskSupervisor implements ITaskSupervisor, ITaskUpdateDelegate {
 
     public async stopTask(taskExecutionId: string, isZombie = false): Promise<ITaskExecution> {
         try {
-            let taskExecution: ITaskExecution = await this._localStorageManager.TaskExecutions.findById(taskExecutionId);
+            let taskExecution: ITaskExecution = await this._localStorageManager.TaskExecutions.findByPk(taskExecutionId);
 
             if (taskExecution.completion_status_code < CompletionResult.Cancel) {
                 taskExecution.execution_status_code = ExecutionStatus.Zombie;
@@ -212,7 +214,7 @@ export class TaskSupervisor implements ITaskSupervisor, ITaskUpdateDelegate {
                 }
             }
 
-            return this._localStorageManager.TaskExecutions.findById(taskExecutionId);
+            return this._localStorageManager.TaskExecutions.findByPk(taskExecutionId);
         } catch (err) {
             // Null error means error in ProcessManager.stop() and already reported.
             if (err !== null) {
