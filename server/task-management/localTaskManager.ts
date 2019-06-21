@@ -105,7 +105,7 @@ export class LocalTaskManager implements ITaskUpdateSource, ITaskManager, Proces
     }
 
     private async refreshOneTaskForProcess(processInfo: IProcessInfo): Promise<void> {
-        const taskExecution = await this._localStorageManager.TaskExecutions.findById(processInfo.name);
+        const taskExecution = await this._localStorageManager.TaskExecutions.findByPk(processInfo.name);
 
         if (taskExecution) {
             let stats = null;

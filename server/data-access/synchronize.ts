@@ -155,7 +155,7 @@ async function updateRemote(tasks: ITaskExecution[]) {
             /*
            const obj = task.get({plain: true});
 
-             const remote = await remoteStorageManager.TaskExecutions.findById(obj.id);
+             const remote = await remoteStorageManager.TaskExecutions.findByPk(obj.id);
 
             if (remote.synchronized_at === null) {
                 obj.sync_status = SyncStatus.Never;

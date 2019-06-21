@@ -222,7 +222,7 @@ export class LSFTaskManager implements ITaskUpdateSource, ITaskManager {
     }
 
     public async stopTask(taskExecutionId: string) {
-        const taskExecution = await this._localStorageManager.TaskExecutions.findById(taskExecutionId);
+        const taskExecution = await this._localStorageManager.TaskExecutions.findByPk(taskExecutionId);
 
         await killJob(taskExecution.job_id);
     }
