@@ -1,5 +1,3 @@
-import * as path from "path";
-
 export interface ITaskDefinition {
     id: string;
     name: string;
@@ -16,8 +14,6 @@ export interface ITaskDefinition {
     created_at: Date;
     updated_at: Date;
     deleted_at: Date;
-
-    getFullScriptPath(): Promise<string>;
 }
 
 export const TableName = "TaskDefinitions";
@@ -83,22 +79,6 @@ export function sequelizeImport(sequelize, DataTypes) {
         TaskDefinition.belongsTo(models.TaskRepositories, {foreignKey: "task_repository_id"});
 
         TaskRepositories = models.TaskRepositories;
-    };
-
-    TaskDefinition.prototype.getFullScriptPath = async function(): Promise<string> {
-        let scriptPath = this.script;
-
-        if (this.task_repository_id) {
-            const repo = await TaskRepositories.findById(this.task_repository_id);
-
-            scriptPath = path.join(repo.location, scriptPath);
-        } else {
-            if (!path.isAbsolute(scriptPath)) {
-                scriptPath = path.join(process.cwd(), scriptPath);
-            }
-        }
-
-        return scriptPath;
     };
 
     return TaskDefinition;
