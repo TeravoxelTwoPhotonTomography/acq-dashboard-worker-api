@@ -150,7 +150,7 @@ export class LSFTaskManager implements ITaskUpdateSource, ITaskManager {
 
         const requiredBsubArgs = ["-J", jobName, "-g", `/mouselight/pipeline/${taskExecution.pipeline_stage_id}`, "-oo", `${taskExecution.resolved_log_path + ".cluster.out.log"}`, "-eo", `${taskExecution.resolved_log_path + ".cluster.err.log"}`];
 
-        const clusterArgs = taskExecution.resolved_cluster_args.replace(/"/g, `\\"`).replace(/\(/g, `\\(`).replace(/\)/g, `\\)`);
+        const clusterArgs = taskExecution.resolved_cluster_args; // .replace(/"/g, `\\"`).replace(/\(/g, `\\(`).replace(/\)/g, `\\)`);
 
         const clusterCommand = ["bsub"].concat([clusterArgs]).concat(requiredBsubArgs).concat([`'${programArgs}'`]).join(" ");
 
