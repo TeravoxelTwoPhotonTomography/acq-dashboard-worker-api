@@ -9,7 +9,7 @@
   "main": "server/pipelineWorkerApp.js",
   "scripts": {
     "devel": "DEBUG=pipeline* node $NODE_DEBUG_OPTION --trace-warnings server/pipelineWorkerApp.js",
-    "debug": "DEBUG=pipeline* node --inspect=pipeline-worker.local:9229 --trace-warnings server/pipelineWorkerApp.js",
+    "debug": "DEBUG=pipeline* node --inspect=pipeline.local:9229 --trace-warnings server/pipelineWorkerApp.js",
     "docker-build": "gulp docker-build",
     "docker-release": "gulp release"
   },
