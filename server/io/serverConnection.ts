@@ -11,7 +11,7 @@ import {MainQueue} from "../message-queue/mainQueue";
 
 
 export class SocketIoClient {
-    private static _UPDATE_INTERVAL_MINUTES = 10;
+    private static _UPDATE_INTERVAL_MINUTES = 1;
     private static _HEARTBEAT_INTERVAL_SECONDS = 10;
 
     private static _ioClient: SocketIoClient = null;
@@ -40,7 +40,7 @@ export class SocketIoClient {
         this.emitHostInformation();
 
         if (!this._updateInterval) {
-            this._updateInterval = setInterval(() => this.emitHeartBeat(), SocketIoClient._UPDATE_INTERVAL_MINUTES * 60 * 1000);
+            this._updateInterval = setInterval(() => this.emitHostInformation(), SocketIoClient._UPDATE_INTERVAL_MINUTES * 60 * 1000);
         }
 
         await this.emitHeartBeat();
@@ -51,7 +51,6 @@ export class SocketIoClient {
     }
 
     private emitHostInformation() {
-
         MainQueue.Instance.StatusChannel.sendStatus({
             worker: this._worker,
             service: ServiceConfiguration,

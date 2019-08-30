@@ -8,7 +8,6 @@ const debug = require("debug")("pipeline:main-queue");
 
 const TaskExecutionCompleteQueue = "TaskExecutionCompleteQueue";
 const TaskExecutionUpdateQueue = "TaskExecutionUpdateQueue";
-// const TaskCancelRequestQueue = "TaskCancelRequestQueue";
 
 export class MainQueue {
     private static instance: MainQueue = new MainQueue();
@@ -116,8 +115,6 @@ export class MainQueue {
             await this._channel.assertQueue(TaskExecutionCompleteQueue, {durable: true});
 
             await this._channel.assertQueue(TaskExecutionUpdateQueue, {durable: false});
-
-            // await this._channel.assertQueue(TaskCancelRequestQueue, {durable: false});
 
             return true;
         } catch (err) {
