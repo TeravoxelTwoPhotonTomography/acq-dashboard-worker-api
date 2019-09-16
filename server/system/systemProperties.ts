@@ -9,16 +9,6 @@ export interface IIMachineProperties {
     totalMemory: number;
 }
 
-const machineProperties = {
-    osType: "",
-    platform: "",
-    arch: "",
-    release: "",
-    cpuCount: 0,
-    totalMemory: 0
-};
-
-
 function readMachineProperties(): IIMachineProperties {
     return {
         osType: os.type(),
