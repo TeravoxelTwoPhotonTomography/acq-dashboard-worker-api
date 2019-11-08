@@ -1,9 +1,8 @@
 const debug = require("debug")("pipeline:worker-api:message-queue");
 
-import {ITaskExecutionAttributes} from "../data-model/sequelize/taskExecution";
-import {LocalPersistentStorageManager} from "../data-access/local/databaseConnector";
+import {TaskExecution} from "../data-model/local/taskExecution";
 import {MachineProperties} from "../system/systemProperties";
-import {IWorker} from "../data-model/sequelize/worker";
+import {PipelineWorker} from "../data-model/local/worker";
 import {ICoordinatorService} from "../options/coreServicesOptions";
 import {ServiceConfiguration} from "../options/serviceConfig";
 import {QueueType} from "../task-management/taskSupervisor";
@@ -16,7 +15,7 @@ export class SocketIoClient {
 
     private static _ioClient: SocketIoClient = null;
 
-    public static async use(worker: IWorker, coordinatorService: ICoordinatorService) {
+    public static async use(worker: PipelineWorker, coordinatorService: ICoordinatorService) {
         if (this._ioClient === null) {
             this._ioClient = new SocketIoClient(worker, coordinatorService);
             await this._ioClient.start();
@@ -24,14 +23,12 @@ export class SocketIoClient {
     }
 
     private readonly _url: string;
-    private readonly _worker: IWorker;
+    private readonly _worker: PipelineWorker;
 
     private _heartBeatInterval = null;
     private _updateInterval = null;
 
-    private _localStorageManager = LocalPersistentStorageManager.Instance();
-
-    private constructor(worker: IWorker, coordinatorService: ICoordinatorService) {
+    private constructor(worker: PipelineWorker, coordinatorService: ICoordinatorService) {
         this._worker = worker;
         this._url = `http://${coordinatorService.host}:${coordinatorService.port}`;
     }
@@ -63,7 +60,7 @@ export class SocketIoClient {
             let localTaskLoad = 0;
             let clusterTaskLoad = 0;
 
-            const tasks: ITaskExecutionAttributes[] = await this._localStorageManager.TaskExecutions.findRunning();
+            const tasks: TaskExecution[] = await TaskExecution.findRunning();
 
             tasks.map((t) => {
                 if (t.queue_type === QueueType.Local) {

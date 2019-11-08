@@ -1,6 +1,7 @@
-import {FindOptions, Instance, Model} from "sequelize";
-import {isNullOrUndefined} from "util";
+import {DataTypes, FindOptions, Sequelize} from "sequelize";
+
 import {QueueType} from "../../task-management/taskSupervisor";
+import {BaseModel} from "../baseModel";
 
 export enum ExecutionStatus {
     Undefined = 0,
@@ -27,14 +28,14 @@ export enum SyncStatus {
     Expired = 3
 }
 
-export interface ITaskExecutionAttributes {
-    id?: string;
+export type StartTaskData = {
+    id: string;
     worker_id: string;
-    remote_task_execution_id?: string;
+    remote_task_execution_id: string;
     tile_id: string;
     task_definition_id: string;
     pipeline_stage_id: string;
-    queue_type: number,
+    queue_type: number;
     local_work_units: number;
     cluster_work_units: number;
     resolved_output_path: string;
@@ -44,8 +45,8 @@ export interface ITaskExecutionAttributes {
     resolved_cluster_args: string;
     resolved_log_path: string;
     expected_exit_code: number;
-    job_id: number,
-    job_name: string,
+    job_id: number;
+    job_name: string;
     execution_status_code: ExecutionStatus;
     completion_status_code: CompletionResult;
     last_process_status_code: number;
@@ -56,27 +57,81 @@ export interface ITaskExecutionAttributes {
     submitted_at: Date;
     started_at: Date;
     completed_at: Date;
-    sync_status?: SyncStatus;
-    synchronized_at?: Date;
+    sync_status: SyncStatus;
+    synchronized_at: Date;
     created_at: Date;
     updated_at: Date;
-    deleted_at: Date;
 }
 
-export interface ITaskExecution extends Instance<ITaskExecutionAttributes>, ITaskExecutionAttributes {
+export class TaskExecution extends BaseModel {
+    public worker_id: string;
+    public remote_task_execution_id: string;
+    public tile_id: string;
+    public task_definition_id: string;
+    public pipeline_stage_id: string;
+    public queue_type: number;
+    public local_work_units: number;
+    public cluster_work_units: number;
+    public resolved_output_path: string;
+    public resolved_script: string;
+    public resolved_interpreter: string;
+    public resolved_script_args: string;
+    public resolved_cluster_args: string;
+    public resolved_log_path: string;
+    public expected_exit_code: number;
+    public job_id: number;
+    public job_name: string;
+    public execution_status_code: ExecutionStatus;
+    public completion_status_code: CompletionResult;
+    public last_process_status_code: number;
+    public cpu_time_seconds: number;
+    public max_cpu_percent: number;
+    public max_memory_mb: number;
+    public exit_code: number;
+    public submitted_at: Date;
+    public started_at: Date;
+    public completed_at: Date;
+    public sync_status: SyncStatus;
+    public synchronized_at: Date;
+
+    public static async findRunning(): Promise<TaskExecution[]> {
+        return TaskExecution.findAll({
+            where: {execution_status_code: ExecutionStatus.Running},
+            order: [["submitted_at", "DESC"]]
+        });
+    };
+
+    public static async findRunningByQueueType(queueType: QueueType): Promise<TaskExecution[]> {
+        return TaskExecution.findAll({
+            where: {execution_status_code: ExecutionStatus.Running, queue_type: queueType}
+        });
+    };
+
+    public static async getPage(reqOffset: number, reqLimit: number, completionCode: CompletionResult): Promise<TaskExecution[]> {
+        const options: FindOptions = {
+            offset: reqOffset,
+            limit: reqLimit,
+            order: [["completed_at", "DESC"]]
+        };
+
+        if (completionCode != null) {
+            options.where = {completion_status_code: completionCode};
+        }
+
+        return TaskExecution.findAll(options);
+    };
+
+    public static async removeWithCompletionCode(code: CompletionResult): Promise<number> {
+        if (code == null) {
+            code = CompletionResult.Success;
+        }
+
+        return TaskExecution.destroy({where: {completion_status_code: code}});
+    };
 }
 
-export interface TaskExecutionModel extends Model<ITaskExecution, ITaskExecutionAttributes> {
-    findRunning(): Promise<ITaskExecution[]>;
-    findRunningByQueueType(queueType: QueueType): Promise<ITaskExecution[]>;
-    getPage(reqOffset: number, reqLimit: number, completionCode: CompletionResult): Promise<ITaskExecution[]>;
-    removeWithCompletionCode(code: CompletionResult): Promise<number>;
-}
-
-export const TableName = "TaskExecutions";
-
-export function sequelizeImport(sequelize, DataTypes) {
-    const TaskExecution = sequelize.define(TableName, {
+export const modelInit = (sequelize: Sequelize) => {
+    TaskExecution.init({
         id: {
             primaryKey: true,
             type: DataTypes.UUID,
@@ -177,43 +232,7 @@ export function sequelizeImport(sequelize, DataTypes) {
         createdAt: "created_at",
         updatedAt: "updated_at",
         deletedAt: "deleted_at",
-        paranoid: false
+        paranoid: false,
+        sequelize
     });
-
-    TaskExecution.findRunning = async function (): Promise<ITaskExecution[]> {
-        return TaskExecution.findAll({
-            where: {execution_status_code: ExecutionStatus.Running},
-            order: [["submitted_at", "DESC"]]
-        });
-    };
-
-    TaskExecution.findRunningByQueueType = async function (queueType: QueueType): Promise<ITaskExecution[]> {
-        return TaskExecution.findAll({
-            where: {execution_status_code: ExecutionStatus.Running, queue_type: queueType}
-        });
-    };
-
-    TaskExecution.getPage = async function (reqOffset: number, reqLimit: number, completionCode: CompletionResult): Promise<ITaskExecution[]> {
-        const options: FindOptions<ITaskExecutionAttributes> = {
-            offset: reqOffset,
-            limit: reqLimit,
-            order: [["completed_at", "DESC"]]
-        };
-
-        if (!isNullOrUndefined(completionCode)) {
-            options.where = {completion_status_code: completionCode};
-        }
-
-        return TaskExecution.findAll(options);
-    };
-
-    TaskExecution.removeWithCompletionCode = async function (code: CompletionResult): Promise<number> {
-        if (isNullOrUndefined(code)) {
-            code = CompletionResult.Success;
-        }
-
-        return TaskExecution.destroy({where: {completion_status_code: code}});
-    };
-
-    return TaskExecution;
-}
+};

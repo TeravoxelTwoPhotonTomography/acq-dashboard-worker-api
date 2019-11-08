@@ -1,3 +1,5 @@
+import {Dialect} from "sequelize";
+
 const path = require("path");
 const fs = require("fs-extra");
 
@@ -34,7 +36,7 @@ const coreServicesOptions: ICoreServices = {
             password: "pgsecret",
             host: "pipeline-db",
             port: 5432,
-            dialect: "postgres",
+            dialect: "postgres" as Dialect,
             logging: null,
             pool: {
                 max: 5,
@@ -47,7 +49,7 @@ const coreServicesOptions: ICoreServices = {
             database: "pipeline_production",
             username: null,
             password: null,
-            dialect: "sqlite",
+            dialect: "sqlite" as Dialect,
             storage: path.join(internalDataPath, "worker-system-data.sqlite3"),
             logging: null
         }

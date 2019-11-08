@@ -7,17 +7,21 @@ const debug = require("debug")("pipeline:worker-api:server");
 
 import {SocketIoClient} from "./io/serverConnection";
 import {MainQueue} from "./message-queue/mainQueue";
-import {LocalPersistentStorageManager} from "./data-access/local/databaseConnector";
+import {LocalDatabaseClient} from "./data-access/local/localDatabaseClient";
 import {ServiceConfiguration} from "./options/serviceConfig";
 import {CoordinatorService} from "./options/coreServicesOptions";
 import {typeDefinitions} from "./graphql/typeDefinitions";
 import resolvers from "./graphql/resolvers";
 import {GraphQLAppContext} from "./graphql/graphQLContext";
+import {RemoteDatabaseClient} from "./data-access/remote/remoteDatabaseClient";
+import {PipelineWorker} from "./data-model/local/worker";
 
 start().then().catch((err) => debug(err));
 
 async function start() {
-    const worker = await LocalPersistentStorageManager.Instance().initialize();
+    await LocalDatabaseClient.Start();
+
+    await RemoteDatabaseClient.Start();
 
     await MainQueue.Instance.connect();
 
@@ -27,7 +31,7 @@ async function start() {
 
     app.use(bodyParser.json());
 
-    await SocketIoClient.use(worker, CoordinatorService);
+    await SocketIoClient.use(PipelineWorker.CurrentWorker, CoordinatorService);
 
     const server = new ApolloServer({
         typeDefs: gql`${typeDefinitions}`,

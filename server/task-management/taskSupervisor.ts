@@ -1,16 +1,12 @@
+import {PipelineWorker} from "../data-model/local/worker";
+
 const asyncUtils = require("async");
 import * as fse from "fs-extra";
-import {isNullOrUndefined} from "util";
 
 const debug = require("debug")("pipeline:worker-api:task-supervisor");
 
-import {LocalPersistentStorageManager} from "../data-access/local/databaseConnector";
 import {localTaskManager} from "./localTaskManager";
-import {
-    CompletionResult, ExecutionStatus, ITaskExecution,
-    ITaskExecutionAttributes
-} from "../data-model/sequelize/taskExecution";
-import {synchronizeTaskExecutions} from "../data-access/synchronize";
+import {CompletionResult, ExecutionStatus, StartTaskData, TaskExecution} from "../data-model/local/taskExecution";
 import {LSFTaskManager} from "./lsfManager";
 import * as path from "path";
 import {MainQueue} from "../message-queue/mainQueue";
@@ -52,8 +48,8 @@ export interface IJobUpdate {
 }
 
 export interface ITaskSupervisor {
-    startTask(remoteTaskExecution: ITaskExecutionAttributes): Promise<IStartTaskResponse>;
-    stopTask(taskExecutionId: string): Promise<ITaskExecutionAttributes>;
+    startTask(remoteTaskExecution: TaskExecution): Promise<IStartTaskResponse>;
+    stopTask(taskExecutionId: string): Promise<TaskExecution>;
 }
 
 export interface ITaskUpdateSource {
@@ -61,20 +57,18 @@ export interface ITaskUpdateSource {
 }
 
 export interface ITaskUpdateDelegate {
-    updateZombie(taskExecution: ITaskExecutionAttributes);
-    update(taskExecution: ITaskExecutionAttributes, processInfo: IJobUpdate);
+    updateZombie(taskExecution: TaskExecution);
+    update(taskExecution: TaskExecution, processInfo: IJobUpdate);
     notifyTaskLoad(queueType: QueueType, load: number);
 }
 
 export interface ITaskManager {
-    startTask(taskExecution: ITaskExecutionAttributes): void;
+    startTask(taskExecution: TaskExecution): void;
     stopTask(taskExecutionId: string): void;
 }
 
 export class TaskSupervisor implements ITaskSupervisor, ITaskUpdateDelegate {
     public static Instance = new TaskSupervisor();
-
-    private _localStorageManager: LocalPersistentStorageManager = LocalPersistentStorageManager.Instance();
 
     private _localTaskLoad = 0;
     private _clusterTaskLoad = 0;
@@ -83,14 +77,10 @@ export class TaskSupervisor implements ITaskSupervisor, ITaskUpdateDelegate {
         localTaskManager.TaskUpdateDelegate = this;
 
         LSFTaskManager.Instance.TaskUpdateDelegate = this;
-
-        setTimeout(async () => {
-            await this.synchronizeUnsuccessfulTasks();
-        }, 0)
     }
 
-    public async startTask(remoteTaskExecution: ITaskExecutionAttributes): Promise<IStartTaskResponse> {
-        const worker = this._localStorageManager.Worker;
+    public async startTask(remoteTaskExecution: TaskExecution): Promise<IStartTaskResponse> {
+        const worker = PipelineWorker.CurrentWorker;
 
         let queueType = QueueType.Local;
 
@@ -135,7 +125,7 @@ export class TaskSupervisor implements ITaskSupervisor, ITaskUpdateDelegate {
             localTaskExecutionInput.resolved_script = path.join(process.cwd(), localTaskExecutionInput.resolved_script);
         }
 
-        let taskExecution: ITaskExecution = await this._localStorageManager.TaskExecutions.create(localTaskExecutionInput);
+        let taskExecution: TaskExecution = await TaskExecution.create(localTaskExecutionInput);
 
         try {
             fse.ensureDirSync(taskExecution.resolved_output_path);
@@ -186,18 +176,18 @@ export class TaskSupervisor implements ITaskSupervisor, ITaskUpdateDelegate {
             await MainQueue.Instance.sendTaskExecutionComplete(taskExecution);
         }
 
-        const returnTaskExecution = await this._localStorageManager.TaskExecutions.findByPk(taskExecution.id);
+        const returnTaskExecution = await TaskExecution.findByPk(taskExecution.id);
 
         return {
-            taskExecution: returnTaskExecution.get({plain: true}),
+            taskExecution: returnTaskExecution.get({plain: true}) as StartTaskData,
             localTaskLoad: this._localTaskLoad,
             clusterTaskLoad: this._clusterTaskLoad
         };
     }
 
-    public async stopTask(taskExecutionId: string, isZombie = false): Promise<ITaskExecution> {
+    public async stopTask(taskExecutionId: string, isZombie = false): Promise<TaskExecution> {
         try {
-            let taskExecution: ITaskExecution = await this._localStorageManager.TaskExecutions.findByPk(taskExecutionId);
+            let taskExecution: TaskExecution = await TaskExecution.findByPk(taskExecutionId);
 
             if (taskExecution.completion_status_code < CompletionResult.Cancel) {
                 taskExecution.execution_status_code = ExecutionStatus.Zombie;
@@ -215,7 +205,7 @@ export class TaskSupervisor implements ITaskSupervisor, ITaskUpdateDelegate {
                 }
             }
 
-            return this._localStorageManager.TaskExecutions.findByPk(taskExecutionId);
+            return TaskExecution.findByPk(taskExecutionId);
         } catch (err) {
             // Null error means error in ProcessManager.stop() and already reported.
             if (err !== null) {
@@ -225,11 +215,11 @@ export class TaskSupervisor implements ITaskSupervisor, ITaskUpdateDelegate {
         }
     }
 
-    public async update(taskExecution: ITaskExecution, processInfo: IJobUpdate) {
+    public async update(taskExecution: TaskExecution, processInfo: IJobUpdate) {
         await this._update(taskExecution, processInfo);
     }
 
-    public async updateZombie(taskExecution: ITaskExecution) {
+    public async updateZombie(taskExecution: TaskExecution) {
         await this.stopTask(taskExecution.id, true);
     }
 
@@ -241,31 +231,13 @@ export class TaskSupervisor implements ITaskSupervisor, ITaskUpdateDelegate {
         }
     }
 
-    private async synchronizeUnsuccessfulTasks() {
-        try {
-            // TODO Synchronize is currently disabled  (connection to remote database and task execution table on remote
-            // has been removed during a refactor.
-            const worker = await LocalPersistentStorageManager.Instance().Worker;
-
-            if (!isNullOrUndefined(worker)) {
-                await synchronizeTaskExecutions(worker.id, CompletionResult.Error);
-                await synchronizeTaskExecutions(worker.id, CompletionResult.Cancel);
-                await synchronizeTaskExecutions(worker.id, CompletionResult.Resubmitted);
-            }
-
-            setTimeout(async () => await this.synchronizeUnsuccessfulTasks(), 15000);
-        } catch (err) {
-            debug(err);
-        }
-    }
-
-    private async _update(taskExecution: ITaskExecution, jobUpdate: IJobUpdate) {
+    private async _update(taskExecution: TaskExecution, jobUpdate: IJobUpdate) {
         if (taskExecution == null) {
             debug(`skipping update for null task execution (${taskExecution == null})`);
             return;
         }
 
-        if (!isNullOrUndefined(jobUpdate.status)) {
+        if (jobUpdate.status != null) {
             if (jobUpdate.status === JobStatus.Pending) {
                 taskExecution.started_at = new Date();
             }
@@ -297,7 +269,7 @@ export class TaskSupervisor implements ITaskSupervisor, ITaskUpdateDelegate {
 
                 if (taskExecution.queue_type === QueueType.Local) {
                     // Exit code may arrive separately from status change of done/exit.
-                    if (!isNullOrUndefined(jobUpdate.exitCode)) {
+                    if (jobUpdate.exitCode != null) {
                         // May already be set if cancelled.
                         if (taskExecution.completion_status_code < CompletionResult.Cancel) {
                             taskExecution.completion_status_code = (jobUpdate.exitCode === taskExecution.expected_exit_code) ? CompletionResult.Success : CompletionResult.Error;
@@ -317,7 +289,7 @@ export class TaskSupervisor implements ITaskSupervisor, ITaskUpdateDelegate {
                             taskExecution.completion_status_code = CompletionResult.Error;
                         }
 
-                        if (!isNullOrUndefined(jobUpdate.exitCode) && isNullOrUndefined(taskExecution.exit_code)) {
+                        if ((jobUpdate.exitCode != null) && (taskExecution.exit_code == null)) {
                             taskExecution.exit_code = jobUpdate.exitCode;
                         }
 
@@ -335,7 +307,7 @@ export class TaskSupervisor implements ITaskSupervisor, ITaskUpdateDelegate {
             }
         }
 
-        if (!isNullOrUndefined(jobUpdate.statistics)) {
+        if (jobUpdate.statistics != null) {
             taskExecution.cpu_time_seconds = validStatistics(taskExecution.cpu_time_seconds, jobUpdate.statistics.cpuTimeSeconds);
             taskExecution.max_cpu_percent = validStatistics(taskExecution.max_cpu_percent, jobUpdate.statistics.cpuPercent);
             taskExecution.max_memory_mb = validStatistics(taskExecution.max_memory_mb, jobUpdate.statistics.memoryMB);
@@ -346,7 +318,7 @@ export class TaskSupervisor implements ITaskSupervisor, ITaskUpdateDelegate {
 }
 
 function validStatistics(current, value): number {
-    if (!isNullOrUndefined(value) && (value > current || isNaN(current))) {
+    if ((value != null) && (value > current || isNaN(current))) {
         return value;
     } else {
         return current;
@@ -356,12 +328,12 @@ function validStatistics(current, value): number {
 const connectorQueueAccess = asyncUtils.queue(accessQueueWorker, 1);
 
 interface IAccessQueueToken {
-    remoteTaskExecution: ITaskExecutionAttributes;
+    remoteTaskExecution: TaskExecution;
     resolve: any;
     reject: any;
 }
 
-export async function startTask(remoteTaskExecution: ITaskExecutionAttributes): Promise<IStartTaskResponse> {
+export async function startTask(remoteTaskExecution: TaskExecution): Promise<IStartTaskResponse> {
     return new Promise<IStartTaskResponse>((resolve, reject) => {
         connectorQueueAccess.push({
             remoteTaskExecution,

@@ -1,5 +1,4 @@
 import * as path from "path";
-import {isNullOrUndefined} from "util";
 import * as moment from "moment";
 import * as _ from "lodash";
 
@@ -9,15 +8,13 @@ import * as ProcessManager from "./pm2-async";
 const debug = require("debug")("pipeline:worker-api:local-manager");
 
 import {IProcessInfo} from "./pm2-async";
-import {ExecutionStatus, ITaskExecution, ITaskExecutionAttributes} from "../data-model/sequelize/taskExecution";
-import {LocalPersistentStorageManager} from "../data-access/local/databaseConnector";
+import {ExecutionStatus, TaskExecution} from "../data-model/local/taskExecution";
 import {
     JobStatus, IJobStatistics, ITaskUpdateDelegate,
     ITaskUpdateSource, ITaskManager, QueueType
 } from "./taskSupervisor";
 
 export class LocalTaskManager implements ITaskUpdateSource, ITaskManager, ProcessManager.IPM2MonitorDelegate {
-    private _localStorageManager: LocalPersistentStorageManager = LocalPersistentStorageManager.Instance();
 
     private _taskUpdateDelegate: ITaskUpdateDelegate;
 
@@ -67,7 +64,7 @@ export class LocalTaskManager implements ITaskUpdateSource, ITaskManager, Proces
     private async refreshTasksFromProcessManager(): Promise<number> {
         const processList: IProcessInfo[] = await ProcessManager.list();
 
-        const running: ITaskExecutionAttributes[] = (await this._localStorageManager.TaskExecutions.findRunning()).filter(z => z.queue_type === QueueType.Local);
+        const running: TaskExecution[] = (await TaskExecution.findRunning()).filter(z => z.queue_type === QueueType.Local);
 
         if (running.length === 0) {
             // TODO if refreshOneTaskForProcess starts doing something with orphans, don't early return here.
@@ -77,7 +74,7 @@ export class LocalTaskManager implements ITaskUpdateSource, ITaskManager, Proces
 
         await Promise.all(processList.map(processInfo => this.refreshOneTaskForProcess(processInfo)));
 
-        const zombies = _.differenceWith(running, processList, (r: ITaskExecutionAttributes, j: IProcessInfo) => {
+        const zombies = _.differenceWith(running, processList, (r: TaskExecution, j: IProcessInfo) => {
             return r.id === j.name;
         });
 
@@ -105,7 +102,7 @@ export class LocalTaskManager implements ITaskUpdateSource, ITaskManager, Proces
     }
 
     private async refreshOneTaskForProcess(processInfo: IProcessInfo): Promise<void> {
-        const taskExecution = await this._localStorageManager.TaskExecutions.findByPk(processInfo.name);
+        const taskExecution = await TaskExecution.findByPk(processInfo.name);
 
         if (taskExecution) {
             let stats = null;
@@ -137,7 +134,7 @@ export class LocalTaskManager implements ITaskUpdateSource, ITaskManager, Proces
         }
     }
 
-    public async startTask(taskExecution: ITaskExecution) {
+    public async startTask(taskExecution: TaskExecution) {
         let opts = {
             name: taskExecution.id,
             script: taskExecution.resolved_script,
@@ -211,9 +208,9 @@ function readProcessStatistics(processId: number): Promise<IJobStatistics> {
 
                 stats = statsArray.reduce((prev, stats) => {
                     return {
-                        cpuPercent: isNullOrUndefined(prev.cpuPercent) ? stats.cpuPercent : prev.cpuPercent + (isNullOrUndefined(stats.cpuPercent) ? 0 : stats.cpuPercent),
-                        cpuTimeSeconds: isNullOrUndefined(prev.cpuTimeSeconds) ? stats.cpuTimeSeconds : prev.cpuTimeSeconds + (isNullOrUndefined(stats.cpuTimeSeconds) ? 0 : stats.cpuTimeSeconds),
-                        memoryMB: isNullOrUndefined(prev.memoryMB) ? stats.memoryMB : prev.memoryMB + (isNullOrUndefined(stats.memoryMB) ? 0 : stats.memoryMB)
+                        cpuPercent: prev.cpuPercent == null ? stats.cpuPercent : prev.cpuPercent + (stats.cpuPercent == null ? 0 : stats.cpuPercent),
+                        cpuTimeSeconds: prev.cpuTimeSeconds == null ? stats.cpuTimeSeconds : prev.cpuTimeSeconds + (stats.cpuTimeSeconds == null ? 0 : stats.cpuTimeSeconds),
+                        memoryMB: prev.memoryMB == null ? stats.memoryMB : prev.memoryMB + (stats.memoryMB == null ? 0 : stats.memoryMB)
                     };
                 }, stats);
 

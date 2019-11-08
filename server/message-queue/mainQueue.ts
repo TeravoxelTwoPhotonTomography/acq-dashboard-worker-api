@@ -1,6 +1,6 @@
 import * as amqp from "amqplib";
 import {Connection, Channel} from "amqplib";
-import {ITaskExecutionAttributes} from "../data-model/sequelize/taskExecution";
+import {TaskExecution} from "../data-model/local/taskExecution";
 import {MessageQueueService} from "../options/coreServicesOptions";
 import {StatusChannel} from "./statusChannel";
 
@@ -48,7 +48,7 @@ export class MainQueue {
         }
     }
 
-    public async sendTaskExecutionComplete(taskExecution: ITaskExecutionAttributes) {
+    public async sendTaskExecutionComplete(taskExecution: TaskExecution) {
         try {
             if (!this._channel) {
                 await this.connect();
@@ -65,7 +65,7 @@ export class MainQueue {
         }
     }
 
-    public async sendTaskExecutionUpdate(taskExecution: ITaskExecutionAttributes) {
+    public async sendTaskExecutionUpdate(taskExecution: TaskExecution) {
         try {
             if (!this._channel) {
                 await this.connect();

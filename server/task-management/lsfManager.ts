@@ -5,11 +5,7 @@ import * as moment from "moment";
 
 const debug = require("debug")("pipeline:worker-api:lsf-manager");
 
-import {LocalPersistentStorageManager} from "../data-access/local/databaseConnector";
-import {
-    CompletionResult, ExecutionStatus, ITaskExecution,
-    ITaskExecutionAttributes
-} from "../data-model/sequelize/taskExecution";
+import {CompletionResult, ExecutionStatus, TaskExecution} from "../data-model/local/taskExecution";
 import {IJobUpdate, ITaskManager, ITaskUpdateDelegate, ITaskUpdateSource, JobStatus, QueueType} from "./taskSupervisor";
 import {killJob, updateJobInfo} from "./lsf";
 import {ServiceConfiguration} from "../options/serviceConfig";
@@ -18,8 +14,6 @@ const clusterHost = ServiceConfiguration.cluster.submitHost;
 
 export class LSFTaskManager implements ITaskUpdateSource, ITaskManager {
     public static Instance = new LSFTaskManager();
-
-    private _localStorageManager: LocalPersistentStorageManager = LocalPersistentStorageManager.Instance();
 
     private _taskUpdateDelegate: ITaskUpdateDelegate;
 
@@ -52,7 +46,7 @@ export class LSFTaskManager implements ITaskUpdateSource, ITaskManager {
     }
 
     private async pollClusterJobStatus(): Promise<number> {
-        const running: ITaskExecutionAttributes[] = (await this._localStorageManager.TaskExecutions.findRunning()).filter(z => z.queue_type === QueueType.Cluster);
+        const running: TaskExecution[] = (await TaskExecution.findRunning()).filter(z => z.queue_type === QueueType.Cluster);
 
         if (running.length === 0) {
             debug("No running jobs - skipping cluster status check.");
@@ -90,7 +84,7 @@ export class LSFTaskManager implements ITaskUpdateSource, ITaskManager {
 
             debug(`found ${running.length} running jobs`);
 
-            const toUpdate: ITaskExecutionAttributes[] = _.intersectionWith(running, jobInfo, (r: ITaskExecutionAttributes, j: IJobUpdate) => {
+            const toUpdate: TaskExecution[] = _.intersectionWith(running, jobInfo, (r: TaskExecution, j: IJobUpdate) => {
                 return r.job_id === j.id;
             });
 
@@ -113,7 +107,7 @@ export class LSFTaskManager implements ITaskUpdateSource, ITaskManager {
             }
         }
 
-        const zombie: ITaskExecutionAttributes[] = _.differenceWith(running, jobInfo, (r: ITaskExecutionAttributes, j: IJobUpdate) => {
+        const zombie: TaskExecution[] = _.differenceWith(running, jobInfo, (r: TaskExecution, j: IJobUpdate) => {
             return r.job_id === j.id;
         });
 
@@ -142,7 +136,7 @@ export class LSFTaskManager implements ITaskUpdateSource, ITaskManager {
         }, 0);
     }
 
-    public startTask(taskExecution: ITaskExecution) {
+    public startTask(taskExecution: TaskExecution) {
         // TODO Need to escape \ and " in any script arguments?
         const programArgs = [taskExecution.resolved_script].concat(JSON.parse(taskExecution.resolved_script_args)).join(" ");
 
@@ -222,7 +216,7 @@ export class LSFTaskManager implements ITaskUpdateSource, ITaskManager {
     }
 
     public async stopTask(taskExecutionId: string) {
-        const taskExecution = await this._localStorageManager.TaskExecutions.findByPk(taskExecutionId);
+        const taskExecution = await TaskExecution.findByPk(taskExecutionId);
 
         await killJob(taskExecution.job_id);
     }
